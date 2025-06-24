@@ -1,13 +1,19 @@
 import streamlit as st
-import time
-from openai import OpenAI, RateLimitError, OpenAIError
+import requests
 
-# --- Page Settings ---
-st.set_page_config(page_title="Kissht CSM Incentive Assistant", page_icon="💸")
-st.title("💸 Kissht CSM Incentive Assistant")
-st.markdown("Ask anything about the **CSM login/disbursal incentive structure (June 20–27)** and get clear answers!")
+# --- Page Config ---
+st.set_page_config(page_title="Kissht Incentive Assistant", page_icon="🤖")
+st.title("💬 Kissht CSM Incentive Assistant")
+st.markdown("Ask me anything about the **login/disbursal incentive structure (June 20–27)**.")
 
-# --- Incentive Structure Prompt (shortened) ---
+# --- Gemini API Key (from Streamlit Secrets) ---
+api_key = st.secrets.get("gemini_api_key", "")
+
+if not api_key:
+    st.error("🚫 Gemini API key not found. Add it in Streamlit secrets.")
+    st.stop()
+
+# --- Incentive Context ---
 incentive_guide = """
 INCENTIVES FOR CSMs (June 20–27):
 
@@ -19,50 +25,32 @@ INCENTIVES FOR CSMs (June 20–27):
 - SM with ≥2 disbursals → ₹1000 per SM (Min 8 SMs)
 - Branch with disbursal ≥₹25L → ₹5000 (Min 3 branches)
 
-✔️ SM and Branch incentives are stackable
+✔️ Stackable: Branch + SM incentives apply
 ✔️ Valid only from June 20 to June 27
 """
 
-# --- Input UI ---
-user_question = st.text_input("🔍 Type your question here")
+# --- User Input ---
+question = st.text_input("🔍 Ask your question here")
 
-# --- Handle API Call on Button Press ---
-if st.button("Get Answer") and user_question:
-    if "openai_api_key" not in st.secrets:
-        st.error("❌ OpenAI API key is missing in Streamlit Secrets!")
-    else:
-        client = OpenAI(api_key=st.secrets["openai_api_key"])
+# --- Gemini Function ---
+def get_gemini_response(question_text):
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "contents": [
+            {"parts": [{"text": f"You are a helpful assistant. Answer only using this policy:\n{incentive_guide}"}]},
+            {"parts": [{"text": question_text}]}
+        ]
+    }
+    response = requests.post(f"{url}?key={api_key}", headers=headers, json=data)
+    result = response.json()
+    try:
+        return result["candidates"][0]["content"]["parts"][0]["text"]
+    except:
+        return "❌ Error: Could not generate a response. Try again."
 
-        with st.spinner("🤖 Thinking..."):
-            retries = 3
-            delay = 8  # seconds between retries
-
-            for attempt in range(retries):
-                try:
-                    response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {"role": "system", "content": f"You are an assistant. ONLY answer using this incentive guide:\n{incentive_guide}"},
-        {"role": "user", "content": user_question}
-    ],
-    max_tokens=300,
-    temperature=0.2
-)
-
-                    # Success
-                    final_answer = response.choices[0].message.content
-                    st.success(final_answer)
-                    break
-
-                except RateLimitError:
-                    if attempt < retries - 1:
-                        st.warning(f"⚠️ Rate limit hit. Retrying in {delay} seconds...")
-                        time.sleep(delay)
-                    else:
-                        st.error("❌ Still hitting rate limits. Try again after some time.")
-                except OpenAIError as e:
-                    st.error(f"❌ OpenAI error: {str(e)}")
-                    break
-                except Exception as e:
-                    st.error(f"⚠️ Unexpected error: {str(e)}")
-                    break
+# --- On Submit ---
+if st.button("Get Answer") and question:
+    with st.spinner("💭 Thinking..."):
+        reply = get_gemini_response(question)
+        st.success(reply)
