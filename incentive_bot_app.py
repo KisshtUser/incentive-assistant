@@ -40,14 +40,15 @@ if st.button("Get Answer") and user_question:
             for attempt in range(retries):
                 try:
                     response = client.chat.completions.create(
-                        model="gpt-4",  # ✅ Best version; use 'gpt-3.5-turbo' if needed
-                        messages=[
-                            {"role": "system", "content": f"You are an assistant. ONLY answer using this incentive guide:\n{incentive_guide}"},
-                            {"role": "user", "content": user_question}
-                        ],
-                        max_tokens=300,
-                        temperature=0.2
-                    )
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": f"You are an assistant. ONLY answer using this incentive guide:\n{incentive_guide}"},
+        {"role": "user", "content": user_question}
+    ],
+    max_tokens=300,
+    temperature=0.2
+)
+
                     # Success
                     final_answer = response.choices[0].message.content
                     st.success(final_answer)
