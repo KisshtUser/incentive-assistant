@@ -1,103 +1,69 @@
 import streamlit as st
 import requests
 
-# --- Page UI ---
-st.set_page_config(page_title="Kissht CSM Incentive Assistant", page_icon="💸")
+# --- Setup ---
+st.set_page_config(page_title="Kissht Incentive Bot", page_icon="💸", layout="centered")
 st.title("💬 Kissht CSM Incentive Assistant")
-st.markdown("Ask anything about the **login/disbursal incentive structure (June 20–27)**.")
+st.markdown("Ask about **Login/Disbursal incentives (June 20–27)**")
 
-# --- Load Gemini API Key ---
+# --- Load API Key ---
 api_key = st.secrets.get("gemini_api_key", "")
 if not api_key:
-    st.error("❌ Gemini API key is missing. Please add it in Streamlit secrets.")
+    st.error("❌ Missing Gemini API key in Streamlit secrets.")
     st.stop()
 
-# --- Incentive Policy ---
+# --- Static Policy Text ---
 incentive_guide = """
-INCENTIVES FOR CSMs (June 20–27):
+**INCENTIVES FOR CSMs (June 20–27):**
 
-🔹 [Login Incentive]
+🔹 *Login Incentive*
 - SM with ≥2 logins → ₹500 per SM (Min 8 SMs)
 - Branch with ≥15 logins → ₹2500 (Min 1 branch)
 
-🔹 [Disbursal Incentive]
+🔹 *Disbursal Incentive*
 - SM with ≥2 disbursals → ₹1000 per SM (Min 8 SMs)
 - Branch with disbursal ≥₹25L → ₹5000 (Min 3 branches)
 
-✔️ Both SM and Branch incentives are stackable
-✔️ Valid only from June 20 to June 27
+✅ Stackable for SM + Branch
+✅ Valid from June 20 to June 27
 """
 
-# --- Gemini Call ---
-def get_gemini_response(query):
+# --- Gemini Call Function ---
+def ask_gemini(query: str) -> str:
     url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
     headers = {"Content-Type": "application/json"}
-    data = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": f"""Use only this policy to answer:
-{incentive_guide}
-
-Question: {query}"""
-                    }
-                ]
-            }
-        ]
+    body = {
+        "contents": [{
+            "role": "user",
+            "parts": [{
+                "text": f"Answer ONLY using the following:\n{incentive_guide}\n\nQ: {query}"
+            }]
+        }]
     }
 
-    res = requests.post(f"{url}?key={api_key}", headers=headers, json=data)
-    res_json = res.json()
+    try:
+        response = requests.post(f"{url}?key={api_key}", headers=headers, json=body, timeout=10)
+        result = response.json()
 
-    # Handle API overload
-    if res.status_code == 503:
-        return "OVERLOADED"
+        if response.status_code == 503:
+            return "⚠️ Gemini is currently overloaded. Please try again in a minute."
 
-    # Handle missing response
-    if "candidates" not in res_json:
-        st.subheader("🔎 Debug Output from Gemini")
-        st.json(res_json)
-        return "❌ Gemini response is missing 'candidates'. Check debug output above."
+        if "candidates" not in result:
+            return f"❌ Error: {result.get('error', {}).get('message', 'Unknown error')}"
 
-    return res_json["candidates"][0]["content"]["parts"][0]["text"]
+        return result["candidates"][0]["content"]["parts"][0]["text"]
 
-# --- User Input & Output ---
-query = st.text_input("🔍 Ask your question here")
+    except requests.exceptions.RequestException as e:
+        return f"❌ Request failed: {e}"
 
-# State to track retry attempts
-if "last_query" not in st.session_state:
-    st.session_state.last_query = ""
-if "last_answer" not in st.session_state:
-    st.session_state.last_answer = ""
-if "overloaded" not in st.session_state:
-    st.session_state.overloaded = False
+# --- UI Input ---
+query = st.text_input("🔍 Ask your question")
 
-# Submit button
-if st.button("Get Answer") and query:
-    with st.spinner("💭 Thinking..."):
-        response = get_gemini_response(query)
-        st.session_state.last_query = query
-
-        if response == "OVERLOADED":
-            st.session_state.overloaded = True
-            st.warning("⚠️ Gemini is currently overloaded. Please click below to retry.")
-        else:
-            st.session_state.last_answer = response
-            st.session_state.overloaded = False
-            st.success("✅ Answer:")
-            st.write(response)
-
-# Retry button
-if st.session_state.overloaded:
-    if st.button("🔁 Retry"):
-        with st.spinner("♻️ Retrying..."):
-            response = get_gemini_response(st.session_state.last_query)
-            if response == "OVERLOADED":
-                st.warning("⚠️ Still overloaded. Try again in a few moments.")
-            else:
-                st.session_state.last_answer = response
-                st.session_state.overloaded = False
-                st.success("✅ Answer:")
-                st.write(response)
+if query:
+    with st.spinner("💬 Getting answer..."):
+        reply = ask_gemini(query)
+    if reply.startswith("⚠️") or reply.startswith("❌"):
+        st.warning(reply)
+    else:
+        st.success("✅ Answer")
+        st.write(reply)
