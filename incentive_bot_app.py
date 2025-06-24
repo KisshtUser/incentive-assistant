@@ -39,20 +39,19 @@ def get_gemini_response(query):
         ]
     }
 
-        try:
-        res = requests.post(f"{url}?key={api_key}", headers=headers, json=data)
-        res_json = res.json()
-        if "candidates" not in res_json:
-            st.json(res_json)  # 👈 Show the full raw response on screen
-            return "❌ Gemini response is missing 'candidates'. Check response above."
-        return res_json["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        return f"❌ Error: {e}"
+    res = requests.post(f"{url}?key={api_key}", headers=headers, json=data)
+    res_json = res.json()
 
+    if "candidates" not in res_json:
+        st.subheader("🔎 Debug Output from Gemini")
+        st.json(res_json)  # Show full response if error
+        return "❌ Gemini response is missing 'candidates'. Check debug output above."
+
+    return res_json["candidates"][0]["content"]["parts"][0]["text"]
 
 # --- Input & Output ---
 user_input = st.text_input("🔍 Ask your question here")
 if st.button("Get Answer") and user_input:
-    with st.spinner("Thinking..."):
+    with st.spinner("💭 Thinking..."):
         answer = get_gemini_response(user_input)
         st.success(answer)
