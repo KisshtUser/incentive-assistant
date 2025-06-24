@@ -38,7 +38,7 @@ if st.button("Get Answer") and user_question:
 
         with st.spinner("Thinking..."):
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": f"You are a helpful assistant. Answer only from the policy:\n\n{incentive_guide}"},
                     {"role": "user", "content": user_question}
