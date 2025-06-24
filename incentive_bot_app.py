@@ -12,7 +12,7 @@ if not api_key:
     st.error("❌ Gemini API key is missing. Please add it in Streamlit secrets.")
     st.stop()
 
-# --- Static Incentive Policy ---
+# --- Incentive Structure Content ---
 incentive_guide = """
 INCENTIVES FOR CSMs (June 20–27):
 
@@ -28,14 +28,23 @@ INCENTIVES FOR CSMs (June 20–27):
 ✔️ Valid only from June 20 to June 27
 """
 
-# --- Gemini Call ---
+# --- Gemini API Call ---
 def get_gemini_response(query):
     url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
     headers = {"Content-Type": "application/json"}
     data = {
         "contents": [
-            {"parts": [{"text": f"You are a helpful assistant. ONLY answer using the following policy:\n{incentive_guide}"}]},
-            {"parts": [{"text": query}]}
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": f"""Use only this policy to answer:
+{incentive_guide}
+
+Question: {query}"""
+                    }
+                ]
+            }
         ]
     }
 
@@ -44,7 +53,7 @@ def get_gemini_response(query):
 
     if "candidates" not in res_json:
         st.subheader("🔎 Debug Output from Gemini")
-        st.json(res_json)  # Show full response if error
+        st.json(res_json)
         return "❌ Gemini response is missing 'candidates'. Check debug output above."
 
     return res_json["candidates"][0]["content"]["parts"][0]["text"]
