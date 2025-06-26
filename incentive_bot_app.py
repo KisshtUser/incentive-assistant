@@ -102,4 +102,4 @@ if user_query:
 st.markdown("---")
 if st.button("🔁 Reset Conversation"):
     st.session_state.chat_history = []
-    st.experimental_rerun()
+    st.success("✅ Conversation has been reset. Start asking a new question.")
